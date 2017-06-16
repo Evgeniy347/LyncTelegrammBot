@@ -1,0 +1,17 @@
+<service>
+	<id>*ep-lync-bot</id>
+	<name>*ep-lync-bot</name>
+	<description>Lync bot</description>
+	<executable>c:\Services\EpLyncBot\bin\EpLyncBot.exe</executable>
+	<workingdirectory>c:\Services\EpLyncBot\bin</workingdirectory>
+	<stopparentprocessfirst>true</stopparentprocessfirst>
+	<serviceaccount>
+		<domain>NT AUTHORITY</domain>
+		<user>NETWORK SERVICE</user>
+		<password/>
+	</serviceaccount>
+	<logpath>%BASE%\logs\</logpath>
+	<log mode="roll-by-size">
+		<keepFiles>2</keepFiles>
+	</log>
+</service>
