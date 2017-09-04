@@ -29,6 +29,19 @@ namespace EpLyncBot
             _bot = bot;
             _initClient();
 
+
+            string[] targetContactUris = { "sip:maa12@europlan.ru" };
+            LyncClient client = LyncClient.GetClient();
+            Conversation conv = client.ConversationManager.AddConversation();
+
+            foreach (string target in targetContactUris)
+            {
+                conv.AddParticipant(client.ContactManager.GetContactByUri(target));
+            }
+            InstantMessageModality m = conv.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality;
+            m.BeginSendMessage("Test Message", null, null);
+
+
             Microsoft.Win32.SystemEvents.SessionSwitch += (s, e) =>
             {
                 if (e.Reason == SessionSwitchReason.SessionLock)
@@ -119,10 +132,11 @@ namespace EpLyncBot
         {
             System.Console.WriteLine("part added");
 
-            if (ea.Participant.IsSelf) return;
+            // if (ea.Participant.IsSelf) return;
+            EventHandler<MessageSentEventArgs> onMessageReceived = (s, e) => _onMessageReceived(s, e, ea.Participant);
 
-            (ea.Participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived +=
-                (s, e) => _onMessageReceived(s, e, ea.Participant);
+            (ea.Participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived -= onMessageReceived;
+            (ea.Participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived += onMessageReceived;
         }
 
         void _onParticipantRemoved(object sender, ParticipantCollectionChangedEventArgs ea)
@@ -135,24 +149,52 @@ namespace EpLyncBot
 
         async void _onMessageReceived(object sender, MessageSentEventArgs e, Participant p)
         {
-            System.Console.WriteLine("message received");
-
-            var conversation = (sender as InstantMessageModality).Conversation;
-
-            if (!_conversations.ContainsValue(conversation))
+            try
             {
-                _log.Warn("Conversation not found");
-                return;
+                System.Console.WriteLine("message received");
+
+                if (p.IsSelf && _isSessionLock) return;
+
+                var conversation = (sender as InstantMessageModality).Conversation;
+
+                if (!_conversations.ContainsValue(conversation))
+                {
+                    _log.Warn("Conversation not found");
+                    return;
+                }
+
+                var id = _conversations.First(x => x.Value == conversation).Key;
+
+                var message = new StringBuilder();
+                message.Append($"*{p.Contact.GetContactInformation(ContactInformationType.DisplayName)}*\n");
+                message.Append(_escapeMarkdown(e.Text));
+                if (p.IsSelf) message.Append("\n");
+                message.Append(id);
+
+                await _bot.SendTextMessageAsync(new ChatId(Settings.App.ChatId), message.ToString(), ParseMode.Markdown, disableNotification: !_isSessionLock);
+                _log.Info($"sent: {message.ToString()}");
+            }
+            catch (Exception ex)
+            {
+                _log.Error(ex);
+            }
+        }
+        
+        string _escapeMarkdown(string str)
+        {
+            if (string.IsNullOrEmpty(str)) return null;
+
+            string[] markdownChars = { "_", "*" };
+            
+            foreach (var c in markdownChars)
+            {
+                for (var i = str.IndexOf(c, 0); i != -1; i = str.IndexOf(c, i + 2))
+                {
+                    str = str.Insert(i, "\\");
+                }
             }
 
-            var id = _conversations.First(x => x.Value == conversation).Key;
-
-            var message = new StringBuilder();
-            message.Append($"*{p.Contact.GetContactInformation(ContactInformationType.DisplayName)}*\n");
-            message.Append(e.Text);
-            message.Append(id);
-
-            await _bot.SendTextMessageAsync(new ChatId(Settings.App.ChatId), message.ToString(), ParseMode.Markdown, disableNotification: !_isSessionLock);
+            return str;
         }
     }
 }
