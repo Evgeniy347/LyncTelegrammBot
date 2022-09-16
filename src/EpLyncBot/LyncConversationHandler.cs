@@ -30,7 +30,7 @@ namespace EpLyncBot
             _initClient();
 
 
-            string[] targetContactUris = { "sip:maa12@europlan.ru" };
+            string[] targetContactUris = { "sip:emarkin@wss-consulting.ru" };
             LyncClient client = LyncClient.GetClient();
             Conversation conv = client.ConversationManager.AddConversation();
 
@@ -101,17 +101,27 @@ namespace EpLyncBot
 
             _lync.ConversationManager.ConversationAdded += _onConversationAdded;
             _lync.ConversationManager.ConversationRemoved += _onConversationRemoved;
+            foreach (Conversation conversation in _lync.ConversationManager.Conversations)
+                _onConversationAdded(conversation);
 
             IsInit = true;
         }
 
         void _onConversationAdded(object sender, ConversationManagerEventArgs ea)
         {
+            _onConversationAdded(ea.Conversation);
+        }
+
+        void _onConversationAdded(Conversation conversation)
+        {
             System.Console.WriteLine("conversation added");
 
-            _conversations.Add(Guid.NewGuid().ToString(), ea.Conversation);
-            ea.Conversation.ParticipantAdded += _onParticipantAdded;
-            ea.Conversation.ParticipantRemoved += _onParticipantRemoved;
+            _conversations.Add(Guid.NewGuid().ToString(), conversation);
+            conversation.ParticipantAdded += _onParticipantAdded;
+            conversation.ParticipantRemoved += _onParticipantRemoved;
+
+            foreach (Participant participant in conversation.Participants)
+                _onParticipantAdded(participant);
         }
 
         void _onConversationRemoved(object sender, ConversationManagerEventArgs e)
@@ -129,14 +139,19 @@ namespace EpLyncBot
         }
 
         void _onParticipantAdded(object sender, ParticipantCollectionChangedEventArgs ea)
+        { 
+            _onParticipantAdded(ea.Participant); 
+        }
+
+        void _onParticipantAdded(Participant participant)
         {
             System.Console.WriteLine("part added");
 
             // if (ea.Participant.IsSelf) return;
-            EventHandler<MessageSentEventArgs> onMessageReceived = (s, e) => _onMessageReceived(s, e, ea.Participant);
+            EventHandler<MessageSentEventArgs> onMessageReceived = (s, e) => _onMessageReceived(s, e, participant);
 
-            (ea.Participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived -= onMessageReceived;
-            (ea.Participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived += onMessageReceived;
+            (participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived -= onMessageReceived;
+            (participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived += onMessageReceived;
         }
 
         void _onParticipantRemoved(object sender, ParticipantCollectionChangedEventArgs ea)
@@ -171,7 +186,7 @@ namespace EpLyncBot
                 if (p.IsSelf) message.Append("\n");
                 message.Append(id);
 
-                await _bot.SendTextMessageAsync(new ChatId(Settings.App.ChatId), message.ToString(), ParseMode.Markdown, disableNotification: !_isSessionLock);
+                await _bot.SendTextMessageAsync(new ChatId(Settings.App.ChatId), message.ToString(), ParseMode.Markdown, disableNotification: p.IsSelf);
                 _log.Info($"sent: {message.ToString()}");
             }
             catch (Exception ex)
@@ -179,13 +194,13 @@ namespace EpLyncBot
                 _log.Error(ex);
             }
         }
-        
+
         string _escapeMarkdown(string str)
         {
             if (string.IsNullOrEmpty(str)) return null;
 
             string[] markdownChars = { "_", "*" };
-            
+
             foreach (var c in markdownChars)
             {
                 for (var i = str.IndexOf(c, 0); i != -1; i = str.IndexOf(c, i + 2))

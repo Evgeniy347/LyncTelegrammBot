@@ -46,7 +46,7 @@ namespace EpLyncBot
             log.Info("Starting...");
             try
             {
-                _bot = new TelegramBotClient(Settings.App.Token, new Agent1Proxy());
+                _bot = new TelegramBotClient(Settings.App.Token);
 
                 _bot.OnMessage += _onMessage;
 
@@ -74,8 +74,8 @@ namespace EpLyncBot
 
             try
             {
-                var message = messageEventArgs.Message;
-                
+                Message message = messageEventArgs.Message;
+
                 if (message.ReplyToMessage != null)
                 {
                     var text = message.ReplyToMessage.Text;
@@ -84,6 +84,7 @@ namespace EpLyncBot
 
                     _lyncConversationHandler.SendMessage(replyTo, message.Text);
                 }
+
             }
             catch (Exception ex)
             {
